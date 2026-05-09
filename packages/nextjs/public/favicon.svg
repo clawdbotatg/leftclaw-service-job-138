@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="8" fill="#2C1A0E"/>
+  <rect x="6" y="10" width="52" height="44" rx="3" fill="#E8D5B0" stroke="#3D2B1F" stroke-width="2"/>
+  <text x="32" y="32" font-family="Georgia, serif" font-weight="900" font-size="14" text-anchor="middle" fill="#8B1A1A" letter-spacing="0.5">WANTED</text>
+  <text x="32" y="46" font-family="Georgia, serif" font-weight="700" font-size="6" text-anchor="middle" fill="#3D2B1F" letter-spacing="1">CLAWD</text>
+</svg>
