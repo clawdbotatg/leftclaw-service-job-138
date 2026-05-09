@@ -183,6 +183,8 @@ contract MostClawdWanted is Ownable2Step, ReentrancyGuard {
         uint256 indexed bountyId, address indexed winner, uint256 claimantAmount, uint256 treasuryAmount, uint256 burnAmount
     );
     event Cancelled(uint256 indexed bountyId);
+    event BountyExpiredClaim(uint256 indexed bountyId);
+    event BountyExpired(uint256 indexed bountyId);
 
     // -----------------------------------------------------------------
     // Errors
@@ -402,9 +404,7 @@ contract MostClawdWanted is Ownable2Step, ReentrancyGuard {
         // ---- Checks ----
         _bountyExists(bountyId);
         Bounty storage b = bounties[bountyId];
-        if (b.status != BountyStatus.Open && b.status != BountyStatus.Claimed && b.status != BountyStatus.Submitted) {
-            revert BountyNotOpen();
-        }
+        if (b.status != BountyStatus.Open) revert BountyNotOpen();
         if (b.judge == address(0)) revert JudgeNotSet();
         if (block.timestamp > b.judgeNominationTime + b.judgeVetoWindow) {
             revert JudgeVetoWindowExpired();
@@ -469,6 +469,33 @@ contract MostClawdWanted is Ownable2Step, ReentrancyGuard {
         emit Claimed(bountyId, msg.sender);
     }
 
+    /// @notice Anyone can call after a FCFS claimant's window expires to reset status to Open.
+    function expireClaim(uint256 bountyId) external {
+        Bounty storage b = bounties[bountyId];
+        if (b.status != BountyStatus.Claimed) revert BountyNotClaimed();
+        ClaimantInfo storage ci = claimants[bountyId][b.currentClaimant];
+        if (block.timestamp <= ci.claimDeadline) revert ChallengeWindowNotOver();
+        // Reset: clear claimant, re-open
+        b.status = BountyStatus.Open;
+        ci.hasClaimed = false;
+        b.currentClaimant = address(0);
+        emit BountyExpiredClaim(bountyId);
+    }
+
+    /// @notice Anyone can expire a bounty after deadline + challengeWindow if unresolved.
+    function expireBounty(uint256 bountyId) external {
+        Bounty storage b = bounties[bountyId];
+        // Only Open, Claimed, or Submitted bounties can be expired
+        if (
+            b.status == BountyStatus.Resolved || b.status == BountyStatus.Expired
+                || b.status == BountyStatus.Cancelled
+        ) revert BountyNotOpen();
+        // Must be past deadline + challengeWindow
+        if (block.timestamp <= b.deadline + b.challengeWindow) revert ChallengeWindowNotOver();
+        b.status = BountyStatus.Expired;
+        emit BountyExpired(bountyId);
+    }
+
     /**
      * @notice Submit proof of work for a previously-registered claim.
      * @param proofCID IPFS CID for the proof artifact.
@@ -510,6 +537,7 @@ contract MostClawdWanted is Ownable2Step, ReentrancyGuard {
         bool isJudge = (msg.sender == b.judge && b.judge != address(0));
         bool isOwnerOverride = (b.resolutionMode == ResolutionMode.TrustedJudge && msg.sender == owner());
         if (!isJudge && !isOwnerOverride) revert NotJudge();
+        if (isOwnerOverride && claimant == msg.sender) revert JudgeIsClaimant();
 
         ClaimantInfo storage ci = claimants[bountyId][claimant];
         if (!ci.hasSubmitted) revert NotClaimant();
